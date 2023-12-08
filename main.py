@@ -8,19 +8,26 @@ SQUARE_SIZE = BOARD_BOUNDS[0]/10
 FPS = 60
 class Board:
     def __init__(self):
-        self.pieces = [Piece(random_piece())]
-        self.active_piece = self.pieces[-1]
+        self.active_piece = Piece(random_piece())
         self.pixel_map = [[0 for i in range(10)] for i in range(20)]
         self.points = 0
     def draw(self, screen):
-        for piece in self.pieces:
-            piece.draw(screen)
+        self.active_piece.draw(screen)
+        ttc = {'I':'cyan', 'S':'green', 'Z':'red', 'J':'blue', 'T':'purple', 'O':'yellow', 'L':'orange'}
+        
+        for i in range(len(self.pixel_map)):
+            for j in range(len(self.pixel_map[i])):
+                if self.pixel_map[i][j] != 0:
+                    color = ttc[self.pixel_map[i][j]]
+                    pygame.draw.rect(screen, color, pygame.Rect(150+j*SQUARE_SIZE, i*SQUARE_SIZE,
+                                                            SQUARE_SIZE, SQUARE_SIZE))
+                    pygame.draw.rect(screen, 'black', pygame.Rect(150+j*SQUARE_SIZE, i*SQUARE_SIZE,
+                                                            SQUARE_SIZE, SQUARE_SIZE), width=1)
     def update(self):
-        self.active_piece = self.pieces[-1]
         self.active_piece.update()
-        self.update_pixel_map()
         if not self.active_piece.active:
-            self.pieces.append(Piece(random_piece()))
+            self.update_pixel_map(self.active_piece)
+            self.active_piece = Piece(random_piece())
             return
         if self.detect_collision(self.active_piece, (1, 0)):
             self.active_piece.active = False
@@ -28,21 +35,18 @@ class Board:
         self.check_clear()
         self.active_piece.y += 1
         
-    def update_pixel_map(self):
+    def update_pixel_map(self, piece):
         '''
         Updates a 2D binary array of where inactive squares are
         '''
-        self.pixel_map = [[0 for i in range(10)] for i in range(20)]
-        for piece in self.pieces:
-            if piece == self.active_piece:
-                continue
-            for square in piece.squares:
-                self.pixel_map[piece.y + square[0]][piece.x + square[1]] = 1
+
+        for square in piece.squares:
+            self.pixel_map[piece.y + square[0]][piece.x + square[1]] = piece.type
     def detect_collision(self, piece, dir):
         for square in piece.squares:
             checksquare_y = clamp(piece.y + square[0] + dir[0], 0, 19)
             checksquare_x = clamp(piece.x + square[1] + dir[1], 0, 9)
-            if self.pixel_map[checksquare_y][checksquare_x] == 1:
+            if self.pixel_map[checksquare_y][checksquare_x] != 0:
                 return True
         return False
     def strafe(self, dist):
@@ -62,13 +66,8 @@ class Board:
     def check_clear(self):
         combo = 0
         for i, row in enumerate(self.pixel_map):
-            if row == [1 for i in range(10)]:
+            if not 0 in set(row):
                 combo += 1
-                for piece in self.pieces.copy():
-                    piece.destroy_row(i)
-                    piece.y += 1
-                    if len(piece.squares) == 0:
-                        self.pieces.remove(piece)
                 self.pixel_map.remove(row)
                 self.pixel_map.insert(0, [0 for i in range(10)])
         self.points += {0:0, 1:40, 2:100, 3:300, 4:1200}[combo]
@@ -136,7 +135,7 @@ class Piece:
         squares = self.squares.copy()
         self.squares = []
         for square in squares:
-            self.squares.append((-square[1]*dir, square[0]*dir))
+            self.squares.append((square[1]*dir, -square[0]*dir))
     def destroy_row(self, row):
         for square in self.squares.copy():
             if self.y + square[0] == row:
@@ -156,6 +155,16 @@ def update_board(board: list[Piece]):
 
 def random_piece():
     return choice(['I', 'S', 'L', 'Z', 'J', 'T', 'O'])
+
+pygame.font.init()
+pts_font = pygame.font.Font('font.ttf', 50)
+def render_points(screen, pts):
+    txt = pts_font.render(str(pts), False, 'white')
+    txtrct = txt.get_rect()
+    txtrct.topleft = (450, -10)
+    screen.blit(txt, txtrct)
+
+    
 
 clamp = lambda value, minv, maxv: max(min(value, maxv), minv)
 
@@ -187,10 +196,10 @@ while running:
             if event.key == pygame.K_DOWN:
                 board.update()
 
-    screen.fill('#111111')
+    screen.fill('#555555')
     pygame.draw.rect(screen, 'black', pygame.Rect(150, 0, 300, 600))
     board.draw(screen)
-    print(board.points)
+    render_points(screen, board.points)
 
     clock.tick(FPS)
     pygame.display.update()
